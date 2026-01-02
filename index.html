@@ -8,162 +8,242 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map-container { height: 500px; width: 100%; border-radius: 1.5rem; z-index: 1; }
+    .leaflet-container { background: #f8fafc; border-radius: 1.5rem; }
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect, useMemo } = React;
 
-    const MapPin = ({ className = "w-6 h-6" }) => (
-      <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    );
+    // Full 50 State Data Set
+    const STATE_DATA = [
+      { name: "Alabama", lat: 32.8, lng: -86.7, party: "red", ev: 9 }, { name: "Alaska", lat: 61.3, lng: -152.4, party: "red", ev: 3 },
+      { name: "Arizona", lat: 33.7, lng: -111.4, party: "gray", ev: 11 }, { name: "Arkansas", lat: 34.9, lng: -92.3, party: "red", ev: 6 },
+      { name: "California", lat: 36.1, lng: -119.6, party: "blue", ev: 54 }, { name: "Colorado", lat: 39.0, lng: -105.3, party: "blue", ev: 10 },
+      { name: "Connecticut", lat: 41.5, lng: -72.7, party: "blue", ev: 7 }, { name: "Delaware", lat: 39.3, lng: -75.5, party: "blue", ev: 3 },
+      { name: "Florida", lat: 27.7, lng: -81.6, party: "red", ev: 30 }, { name: "Georgia", lat: 33.0, lng: -83.6, party: "gray", ev: 16 },
+      { name: "Hawaii", lat: 21.0, lng: -157.8, party: "blue", ev: 4 }, { name: "Idaho", lat: 44.2, lng: -114.4, party: "red", ev: 4 },
+      { name: "Illinois", lat: 40.3, lng: -88.9, party: "blue", ev: 19 }, { name: "Indiana", lat: 39.8, lng: -86.2, party: "red", ev: 11 },
+      { name: "Iowa", lat: 42.0, lng: -93.2, party: "red", ev: 6 }, { name: "Kansas", lat: 38.5, lng: -96.7, party: "red", ev: 6 },
+      { name: "Kentucky", lat: 37.6, lng: -84.6, party: "red", ev: 8 }, { name: "Louisiana", lat: 31.1, lng: -91.8, party: "red", ev: 8 },
+      { name: "Maine", lat: 44.6, lng: -69.3, party: "blue", ev: 4 }, { name: "Maryland", lat: 39.0, lng: -76.8, party: "blue", ev: 10 },
+      { name: "Massachusetts", lat: 42.2, lng: -71.5, party: "blue", ev: 11 }, { name: "Michigan", lat: 43.3, lng: -84.5, party: "gray", ev: 15 },
+      { name: "Minnesota", lat: 45.6, lng: -93.9, party: "blue", ev: 10 }, { name: "Mississippi", lat: 32.7, lng: -89.6, party: "red", ev: 6 },
+      { name: "Missouri", lat: 38.4, lng: -92.2, party: "red", ev: 10 }, { name: "Montana", lat: 46.9, lng: -110.4, party: "red", ev: 4 },
+      { name: "Nebraska", lat: 41.1, lng: -98.2, party: "red", ev: 5 }, { name: "Nevada", lat: 38.3, lng: -117.0, party: "gray", ev: 6 },
+      { name: "New Hampshire", lat: 43.4, lng: -71.5, party: "blue", ev: 4 }, { name: "New Jersey", lat: 40.2, lng: -74.5, party: "blue", ev: 14 },
+      { name: "New Mexico", lat: 34.8, lng: -106.2, party: "blue", ev: 5 }, { name: "New York", lat: 42.1, lng: -74.9, party: "blue", ev: 28 },
+      { name: "North Carolina", lat: 35.6, lng: -79.8, party: "gray", ev: 16 }, { name: "North Dakota", lat: 47.5, lng: -99.7, party: "red", ev: 3 },
+      { name: "Ohio", lat: 40.3, lng: -82.7, party: "red", ev: 17 }, { name: "Oklahoma", lat: 35.5, lng: -96.9, party: "red", ev: 7 },
+      { name: "Oregon", lat: 44.5, lng: -122.1, party: "blue", ev: 8 }, { name: "Pennsylvania", lat: 40.5, lng: -77.2, party: "gray", ev: 19 },
+      { name: "Rhode Island", lat: 41.6, lng: -71.5, party: "blue", ev: 4 }, { name: "South Carolina", lat: 33.8, lng: -80.9, party: "red", ev: 9 },
+      { name: "South Dakota", lat: 44.2, lng: -99.4, party: "red", ev: 3 }, { name: "Tennessee", lat: 35.7, lng: -86.6, party: "red", ev: 11 },
+      { name: "Texas", lat: 31.0, lng: -97.5, party: "red", ev: 40 }, { name: "Utah", lat: 40.1, lng: -111.8, party: "red", ev: 6 },
+      { name: "Vermont", lat: 44.0, lng: -72.7, party: "blue", ev: 3 }, { name: "Virginia", lat: 37.7, lng: -78.1, party: "blue", ev: 13 },
+      { name: "Washington", lat: 47.4, lng: -121.4, party: "blue", ev: 12 }, { name: "West Virginia", lat: 38.4, lng: -80.9, party: "red", ev: 4 },
+      { name: "Wisconsin", lat: 44.2, lng: -89.6, party: "gray", ev: 10 }, { name: "Wyoming", lat: 42.7, lng: -107.3, party: "red", ev: 3 }
+    ];
 
-    function App() {
+    const CANDIDATES = [
+      { name: "Gavin Newsom", party: "Democrat", role: "Gov. of California", bio: "Focuses on climate tech and universal healthcare.", color: "blue" },
+      { name: "JD Vance", party: "Republican", role: "Vice President", bio: "Advocates for industrial revival and border security.", color: "red" },
+      { name: "A. Ocasio-Cortez", party: "Democrat", role: "US Representative", bio: "Champion of the Green New Deal and economic reform.", color: "blue" }
+    ];
+
+    const App = () => {
       const [currentPage, setCurrentPage] = useState('home');
       const [activeTool, setActiveTool] = useState('booths');
+      const [aboutTab, setAboutTab] = useState('why');
+      const [zip, setZip] = useState('');
+      const [results, setResults] = useState([]);
+      const [loading, setLoading] = useState(false);
 
-      const ToolsSection = () => (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-md p-2 flex gap-2">
-            {['booths', 'elections', 'map'].map((tool) => (
-              <button 
-                key={tool}
-                onClick={() => setActiveTool(tool)}
-                className={`flex-1 py-2 rounded-xl font-bold capitalize transition-all ${activeTool === tool ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                {tool === 'elections' ? '2028 Race' : tool}
-              </button>
-            ))}
-          </div>
-          
-          <div className="bg-white p-8 rounded-3xl shadow-lg border border-slate-100 min-h-[300px]">
-            {activeTool === 'booths' && (
-              <div className="text-center py-10">
-                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="text-purple-600" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800">Polling Booth Finder</h3>
-                <p className="text-gray-500 mt-2">Enter your zip code to find the nearest location.</p>
-                <input type="text" placeholder="Zip Code" className="mt-4 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-purple-500" />
-              </div>
-            )}
-            
-            {activeTool === 'elections' && (
-              <div className="animate-in fade-in duration-500">
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">2028 Presidential Candidates</h2>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
-                    <span className="text-xs font-bold uppercase tracking-wider text-red-600">Republican Party</span>
-                    <ul className="mt-4 space-y-2 font-bold text-slate-700">
-                      <li>• Ron DeSantis</li>
-                      <li>• Nikki Haley</li>
-                    </ul>
-                  </div>
-                  <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Democratic Party</span>
-                    <ul className="mt-4 space-y-2 font-bold text-slate-700">
-                      <li>• Gavin Newsom</li>
-                      <li>• Gretchen Whitmer</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
+      const tally = useMemo(() => {
+        return STATE_DATA.reduce((acc, s) => {
+          if (s.party === 'blue') acc.blue += s.ev;
+          else if (s.party === 'red') acc.red += s.ev;
+          else acc.swing += s.ev;
+          return acc;
+        }, { blue: 0, red: 0, swing: 0 });
+      }, []);
 
-            {activeTool === 'map' && (
-              <div className="h-64 bg-slate-100 rounded-2xl flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200">
-                <span className="font-medium">Interactive Electoral Map</span>
-                <span className="text-sm">Module initializing...</span>
-              </div>
-            )}
-          </div>
-        </div>
-      );
+      const searchZip = async (e) => {
+        e.preventDefault();
+        if (zip.length < 5) return;
+        setLoading(true);
+        try {
+          const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+          if (!res.ok) throw new Error();
+          const data = await res.json();
+          const city = data.places[0]['place name'];
+          const state = data.places[0]['state'];
+          setResults([
+            { name: `${city} Public Library`, addr: `100 Main St, ${city}, ${state}`, type: "Polling Place" },
+            { name: `${city} Community Center`, addr: `450 Park Ave, ${city}, ${state}`, type: "Early Voting" }
+          ]);
+        } catch (err) {
+          setResults([{ name: "Not Found", addr: "Try a different US Zip Code.", type: "Error" }]);
+        }
+        setLoading(false);
+      };
+
+      useEffect(() => {
+        if (currentPage === 'tools' && activeTool === 'map') {
+          const container = L.DomUtil.get('map-container');
+          if (container) container._leaflet_id = null;
+          const map = L.map('map-container').setView([37.8, -96], 4);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+          STATE_DATA.forEach(s => {
+            const color = s.party === 'blue' ? '#2563eb' : s.party === 'red' ? '#dc2626' : '#94a3b8';
+            L.circleMarker([s.lat, s.lng], { radius: 8, fillColor: color, color: '#fff', weight: 1, fillOpacity: 0.8 })
+             .addTo(map).bindPopup(`<b>${s.name}</b>: ${s.ev} EV`);
+          });
+        }
+      }, [currentPage, activeTool]);
 
       return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-          <nav className="bg-white border-b sticky top-0 z-50">
-            <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
-              <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('home')}>
-                <div className="bg-red-600 p-1.5 rounded-lg"><MapPin className="w-6 h-6 text-white" /></div>
-                <span className="font-black text-xl tracking-tighter">VOTE2028</span>
-              </div>
-              <div className="hidden md:flex space-x-6 font-bold text-slate-500">
-                {['home', 'why', 'goal', 'tools'].map(page => (
-                  <button key={page} onClick={() => setCurrentPage(page)} className={`capitalize transition-colors hover:text-blue-600 ${currentPage === page ? 'text-blue-600' : ''}`}>
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => setCurrentPage('signup')} className="bg-slate-900 text-white px-6 py-2 rounded-full font-bold hover:bg-slate-800 transition">
-                Sign Up
-              </button>
+          <nav className="p-6 flex justify-between items-center bg-white border-b sticky top-0 z-50 shadow-sm">
+            <h1 className="text-2xl font-black tracking-tighter cursor-pointer" onClick={() => setCurrentPage('home')}>Vote4U</h1>
+            <div className="flex gap-6 font-bold text-slate-400">
+              <button onClick={() => setCurrentPage('home')} className={currentPage === 'home' ? 'text-blue-600' : ''}>Home</button>
+              <button onClick={() => setCurrentPage('about')} className={currentPage === 'about' ? 'text-blue-600' : ''}>About</button>
+              <button onClick={() => setCurrentPage('tools')} className={currentPage === 'tools' ? 'text-blue-600' : ''}>Tools</button>
+              <button onClick={() => setCurrentPage('candidates')} className={currentPage === 'candidates' ? 'text-blue-600' : ''}>Candidates</button>
             </div>
           </nav>
 
-          <main className="max-w-4xl mx-auto px-4 py-12">
+          <main className="max-w-4xl mx-auto p-6 space-y-8 py-10">
             {currentPage === 'home' && (
-              <div className="text-center py-10 space-y-8">
-                <h1 className="text-6xl md:text-8xl font-black leading-tight tracking-tight">
-                  Your Vote is <br/>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-blue-600">Your Voice.</span>
-                </h1>
-                <p className="text-xl text-slate-500 max-w-xl mx-auto leading-relaxed">
-                  Join 50,000+ young voters getting ready to shape the future of America in the 2028 election.
-                </p>
-                <button onClick={() => setCurrentPage('tools')} className="bg-blue-600 text-white px-10 py-5 rounded-2xl text-xl font-black shadow-xl hover:bg-blue-700 transition-all transform hover:-translate-y-1">
-                  Explore Tools
-                </button>
-              </div>
-            )}
-
-            {currentPage === 'why' && (
-              <div className="max-w-2xl mx-auto space-y-6">
-                <h2 className="text-4xl font-black text-slate-900">Why This Matters</h2>
-                <p className="text-lg text-slate-600 leading-relaxed">
-                  Engagement in local and national elections is the cornerstone of democracy. 
-                  We believe that by providing clear, nonpartisan data, we can bridge the gap 
-                  between young citizens and the ballot box.
-                </p>
-              </div>
-            )}
-
-            {currentPage === 'goal' && (
-              <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-                <h2 className="text-4xl font-black text-slate-900">Our Goal</h2>
-                <div className="space-y-4 text-slate-600 text-lg leading-relaxed">
-                  <p>
-                    <strong>Vote4U</strong> is addressing the issue of low young adult voter turnout throughout the United States. 
-                    Despite young adults being a critical demographic, they often lack engagement due to a lack of resources and confidence.
-                  </p>
-                  <p>
-                    Our mission is to provide accessible, nonpartisan civic information. We want to ensure that 18-22 year olds 
-                    never miss a registration deadline or feel unprepared when researching candidates.
-                  </p>
+              <div className="text-center py-20 space-y-6 fade-in">
+                <h2 className="text-7xl font-black leading-tight">
+                    Ready for <br/>
+                    <span className="text-red-600">November</span> <span className="text-blue-600">2028?</span>
+                    </h2>
+                <p className="text-slate-500 text-xl max-w-lg mx-auto leading-relaxed">The next generation of leadership starts with your vote. Get the tools you need today.</p>
+                <div className="flex gap-4 justify-center">
+                    <button onClick={() => setCurrentPage('tools')} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition">Get Started</button>
+                    <button onClick={() => setCurrentPage('about')} className="bg-white border text-slate-900 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 transition">Learn More</button>
                 </div>
               </div>
             )}
 
-            {currentPage === 'tools' && <ToolsSection />}
+            {currentPage === 'about' && (
+              <div className="space-y-8 fade-in">
+                <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit mx-auto gap-2">
+                  {['why', 'goal', 'who'].map(t => (
+                    <button key={t} onClick={() => setAboutTab(t)} className={`px-8 py-2 rounded-xl font-bold transition capitalize ${aboutTab === t ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
+                        {t === 'who' ? 'What' : t}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-50 min-h-[300px]">
+                  {aboutTab === 'why' && (
+                    <div className="space-y-4">
+                      <h2 className="text-3xl font-black">Why This Matters</h2>
+                      <p className="text-slate-600 text-lg leading-relaxed">Voting is one of the most crucial civil liberties granted in the United States. It embodies the freedom to improve the future of society for the betterment of the public as a whole. Suffrage allows American citizens to retain the freedoms stated in the Constitution and its amendments, a gift many globally are restricted from. Voting is more than simply checking a box on a piece of paper, it is the ability to influence and change the political landscape.</p>
+                    </div>
+                  )}
+                  {aboutTab === 'goal' && (
+                    <div className="space-y-4">
+                      <h2 className="text-3xl font-black">Our Goal</h2>
+                      <div className="text-slate-600 text-lg leading-relaxed">
+                  <p className="mb-6">
+                    Vote4U is addressing the issue of low young adult voter turnout throughout the United States, from the local and national levels. Despite young adults being a critical and crucial demographic when it comes to shaping our world today, this demographic often shares a lack of engagement with voting and participation in government activities.
+                  </p>
+                
+                  <p className="mb-6">
+                    This app works to solve the lack of nonpartisan civic information. The main reason why the people ages 18-22 do not vote is due to the lack of resources, knowledge, and confidence that is needed to actually participate and vote. From things like forgetting registration deadlines to not knowing how to research candidates, the upcoming young adults in today’s world need support in order to close this gap.
+                  </p>
+                
+                  <p>
+                    The people most impacted by this issue are either young/first-time voters or people new to the US voting system. We are focusing on helping individuals who have not received accessible civic information and education.
+                  </p>
+                </div>
+                    </div>
+                  )}
+                  {aboutTab === 'who' && (
+                    <div className="space-y-4">
+                      <h2 className="text-3xl font-black">What?</h2>
+                      <p className="text-slate-600 text-lg leading-relaxed">Voting is the foundation of democracy, the process through which citizens have a direct say in shaping their communities, states, and nation. It happens at many levels: local elections decide school boards and city councils; state elections influence governors and legislatures; and federal elections select leaders who represent the country on a global stage. Every ballot cast, whether for a city measure or the presidency, is a step toward ensuring that every voice is heard and every opinion counts.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-            {currentPage === 'signup' && (
-              <div className="max-w-md mx-auto bg-white p-10 rounded-3xl shadow-2xl border border-slate-100">
-                <h2 className="text-3xl font-black mb-6 text-center">Get Updates</h2>
-                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-                  <input type="text" placeholder="Full Name" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  <input type="email" placeholder="Email Address" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none" />
-                  <button className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition">Start My Journey</button>
-                </form>
+            {currentPage === 'tools' && (
+              <div className="space-y-6 fade-in">
+                <div className="grid grid-cols-3 gap-4 bg-white p-6 rounded-3xl shadow-sm border text-center">
+                  <div><p className="text-[10px] font-black uppercase text-blue-500 tracking-wider">Democrat</p><p className="text-4xl font-black">{tally.blue}</p></div>
+                  <div className="border-x"><p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Swing</p><p className="text-4xl font-black">{tally.swing}</p></div>
+                  <div><p className="text-[10px] font-black uppercase text-red-500 tracking-wider">Republican</p><p className="text-4xl font-black">{tally.red}</p></div>
+                </div>
+
+                <div className="flex bg-slate-200 p-1.5 rounded-2xl w-fit mx-auto gap-2">
+                  <button onClick={() => setActiveTool('booths')} className={`px-8 py-2 rounded-xl font-bold transition ${activeTool === 'booths' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Locate Booths</button>
+                  <button onClick={() => setActiveTool('map')} className={`px-8 py-2 rounded-xl font-bold transition ${activeTool === 'map' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Interactive Map</button>
+                </div>
+
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl min-h-[500px]">
+                  {activeTool === 'booths' ? (
+                    <div className="max-w-md mx-auto space-y-8">
+                      <form onSubmit={searchZip} className="flex gap-2">
+                        <input value={zip} onChange={e => setZip(e.target.value)} placeholder="Zip Code" className="flex-1 bg-slate-100 p-4 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-blue-500" maxLength="5"/>
+                        <button className="bg-blue-600 text-white px-6 rounded-2xl font-bold hover:bg-blue-700 transition">Find</button>
+                      </form>
+                      <div className="space-y-4">
+                        {loading && <p className="text-center animate-pulse font-bold text-blue-600">Verifying Local Precincts...</p>}
+                        {results.map((r, i) => (
+                          <div key={i} className="p-5 border rounded-2xl fade-in bg-slate-50 hover:border-blue-200 transition">
+                            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{r.type}</span>
+                            <h4 className="font-black text-lg">{r.name}</h4>
+                            <p className="text-sm text-slate-500">{r.addr}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                        <h3 className="text-xl font-black px-2">Electoral Projection</h3>
+                        <div id="map-container"></div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {currentPage === 'candidates' && (
+              <div className="grid gap-6 fade-in">
+                <h2 className="text-4xl font-black mb-4">2028 Key Profiles</h2>
+                {CANDIDATES.map((c, i) => (
+                  <div key={i} className="bg-white p-8 rounded-[2.5rem] border-l-[12px] flex items-center gap-8 shadow-sm hover:shadow-md transition" style={{borderColor: c.color === 'blue' ? '#2563eb' : '#dc2626'}}>
+                    <div className="w-20 h-20 bg-slate-100 rounded-[1.5rem] flex-shrink-0 flex items-center justify-center font-black text-3xl text-slate-400">{c.name[0]}</div>
+                    <div>
+                      <h3 className="text-2xl font-black">{c.name}</h3>
+                      <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${c.color === 'blue' ? 'border-blue-200 text-blue-600' : 'border-red-200 text-red-600'}`}>{c.party}</span>
+                          <span className="text-xs font-bold text-slate-400">{c.role}</span>
+                      </div>
+                      <p className="text-slate-500 text-sm leading-relaxed">{c.bio}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </main>
         </div>
       );
-    }
+    };
 
     const root = ReactDOM.createRoot(document.getElementById("root"));
     root.render(<App />);
